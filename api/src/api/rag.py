@@ -62,11 +62,10 @@ def to_answer(response, passages: list[Passage]) -> Answer:
     return Answer("".join(parts).strip(), list(numbers.values()))
 
 
-def answer(question: str, passages: list[Passage]) -> Answer:
-    if not passages:
-        return Answer(NOT_FOUND)
+def generate(question: str, passages: list[Passage]):
+    """Raw model response; callers that only need the answer use answer()."""
     with BetaFallbackState():
-        response = llm.client().beta.messages.create(
+        return llm.client().beta.messages.create(
             model=llm.MODEL,
             max_tokens=16000,
             output_config={"effort": "medium"},
@@ -81,4 +80,9 @@ def answer(question: str, passages: list[Passage]) -> Answer:
                 }
             ],
         )
-    return to_answer(response, passages)
+
+
+def answer(question: str, passages: list[Passage]) -> Answer:
+    if not passages:
+        return Answer(NOT_FOUND)
+    return to_answer(generate(question, passages), passages)

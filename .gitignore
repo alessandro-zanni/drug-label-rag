@@ -9,3 +9,4 @@ dist/
 coverage.xml
 .terraform/
 *.tfstate*
+eval/runs/
