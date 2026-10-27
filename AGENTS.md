@@ -30,6 +30,7 @@ Ask questions about drug labels ("Can I take ibuprofen with warfarin?") and get 
 
 - [x] 0. Scaffold: FastAPI + React, Postgres/pgvector in compose, CI
 - [ ] 1. Ingestion: openFDA labels → section chunks → embeddings → pgvector
+  (fetch + chunk done; embedding written, waits for Bedrock access)
 - [ ] 2. RAG: `POST /ask`, hybrid retrieval (vector + full-text), cited answers, streaming
 - [ ] 3. Agent: tool-use loop (`search_labels`, `get_section`, `compare_drugs`)
 - [ ] 4. Eval: golden set, recall@k, LLM-judge faithfulness/correctness, CI gate
@@ -44,7 +45,18 @@ docker compose up -d --build        # db + api on :8000
 cd api && uv run pytest              # tests
 cd api && uv run ruff check . && uv run ruff format .
 cd web && bun dev                    # web on :5173
+cd api && uv run python -m api.ingest [--embed]   # load data/drugs.txt from openFDA
 ```
+
+## Data notes
+
+- One label per drug in `data/drugs.txt`: the newest single-ingredient label. openFDA name
+  search also matches combinations, so `openfda.fetch_label` skips "X and Y", "X/Y", "X, Y".
+- Only the sections in `openfda.SECTIONS` are indexed; packaging and ingredient lists are noise.
+- Re-running ingest only rewrites chunks for labels whose version changed; `--embed` fills
+  chunks with a null vector, so both steps are idempotent.
+- Schema lives in `api/src/api/migrations/` (numbered SQL, applied on connect under an
+  advisory lock).
 
 ## Static analysis
 
