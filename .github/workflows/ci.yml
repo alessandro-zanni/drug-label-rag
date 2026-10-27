@@ -8,6 +8,17 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: rag
+          POSTGRES_PASSWORD: rag
+          POSTGRES_DB: rag
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U rag" --health-interval 5s
+    env:
+      DATABASE_URL: postgresql://rag:rag@localhost:5432/rag
     defaults:
       run:
         working-directory: api

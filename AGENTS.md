@@ -32,6 +32,7 @@ Ask questions about drug labels ("Can I take ibuprofen with warfarin?") and get 
 - [ ] 1. Ingestion: openFDA labels → section chunks → embeddings → pgvector
   (fetch + chunk done; embedding written, waits for Bedrock access)
 - [ ] 2. RAG: `POST /ask`, hybrid retrieval (vector + full-text), cited answers, streaming
+  (done except streaming; untested against Bedrock until AWS access)
 - [ ] 3. Agent: tool-use loop (`search_labels`, `get_section`, `compare_drugs`)
 - [ ] 4. Eval: golden set, recall@k, LLM-judge faithfulness/correctness, CI gate
 - [ ] 5. Prod-readiness: structured logs, audit log, metrics, rate limit, guardrails
@@ -57,6 +58,16 @@ cd api && uv run python -m api.ingest [--embed]   # load data/drugs.txt from ope
   chunks with a null vector, so both steps are idempotent.
 - Schema lives in `api/src/api/migrations/` (numbered SQL, applied on connect under an
   advisory lock).
+
+## RAG notes
+
+- Retrieval (`retrieval.py`): pgvector cosine + Postgres full-text, merged with reciprocal rank
+  fusion in one SQL query. Pass vectors with `::vector`: psycopg sends lists as `float8[]`.
+- Generation (`rag.py`): passages go to Claude as `search_result` blocks with citations on,
+  so citations come from the API, not from parsing `[n]` out of the text.
+- Model `anthropic.claude-opus-5-5` on Bedrock (Mantle client), effort `medium`. Bedrock has no
+  server-side `fallbacks`: `BetaRefusalFallbackMiddleware` retries a refusal on Opus 4.8.
+- Tests need Postgres (`docker compose up -d db`); CI runs it as a service.
 
 ## Static analysis
 

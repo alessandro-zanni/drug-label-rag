@@ -3,6 +3,7 @@ from pathlib import Path
 
 import psycopg
 from pgvector.psycopg import register_vector
+from psycopg_pool import ConnectionPool
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://rag:rag@localhost:5432/rag")
 MIGRATIONS = Path(__file__).parent / "migrations"
@@ -13,6 +14,12 @@ def connect() -> psycopg.Connection:
     migrate(conn)
     register_vector(conn)
     return conn
+
+
+def pool() -> ConnectionPool:
+    with psycopg.connect(DATABASE_URL) as conn:
+        migrate(conn)
+    return ConnectionPool(DATABASE_URL, configure=register_vector, open=True)
 
 
 def migrate(conn: psycopg.Connection) -> None:
