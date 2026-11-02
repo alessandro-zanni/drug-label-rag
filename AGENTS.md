@@ -1,7 +1,7 @@
 # Project instructions — Drug Label RAG
 
 Practice project run as if it were in production: a RAG + agent API over public drug labels
-(openFDA), with an eval suite, deployed to AWS. `CLAUDE.md` is a symlink to this file.
+(openFDA), with an eval suite, deployed to AWS.
 
 ## What it is
 
