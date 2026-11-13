@@ -33,3 +33,5 @@ def test_hybrid_search_merges_vector_and_full_text(conn):
     assert {p.text for p in results[1:]} == {"vector only", "zzqtestdrug text only"}
     assert results[0].title == "Zzqtestdrug — Dosage"
     assert results[0].source.endswith("setid=t")
+    assert search(conn, "zzqtestdrug", one_hot(1), drug="nope") == []
+    assert len(search(conn, "zzqtestdrug", one_hot(1), drug="zzqtestdrug")) == 3
