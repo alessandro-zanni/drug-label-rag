@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 
-from api import db, rag, retrieval
+from api import agent, db, rag, retrieval
 from api.embeddings import embed
 
 
@@ -31,3 +31,8 @@ def ask(body: Question, request: Request) -> rag.Answer:
     with request.app.state.pool.connection() as conn:
         passages = retrieval.search(conn, body.question, embed(body.question))
     return rag.answer(body.question, passages)
+
+
+@app.post("/agent")
+def ask_agent(body: Question, request: Request) -> rag.Answer:
+    return agent.answer(body.question, request.app.state.pool)
