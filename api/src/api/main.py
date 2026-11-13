@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from api import db, rag, retrieval
+from api import agent, db, rag, retrieval
 from api.embeddings import embed
 
 
@@ -45,3 +45,8 @@ def ask_stream(body: Question, request: Request) -> StreamingResponse:
     return StreamingResponse(
         (f"data: {json.dumps(e)}\n\n" for e in events), media_type="text/event-stream"
     )
+
+
+@app.post("/agent")
+def ask_agent(body: Question, request: Request) -> rag.Answer:
+    return agent.answer(body.question, request.app.state.pool)

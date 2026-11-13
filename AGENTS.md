@@ -77,6 +77,18 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
   server-side `fallbacks`: `BetaRefusalFallbackMiddleware` retries a refusal on Opus 4.8.
 - Tests need Postgres (`docker compose up -d db`); CI runs it as a service.
 
+## Agent notes
+
+- `POST /agent` (`agent.py`): SDK tool runner (`beta.messages.tool_runner`, `@beta_tool`),
+  capped at `MAX_ITERATIONS`; same response shape as `/ask`. Tools return `search_result`
+  blocks, so citations still come from the API.
+- `search_result_index` counts results across the whole conversation, so the agent numbers
+  sources by (url, title), not by a passage list index. Chunks of one section share a number.
+- Tool failures raise `ToolError` (sent back as `is_error`), never kill the loop. Tools borrow a
+  pool connection per call: none is held during model calls.
+- Drug names match `generic_name`/`brand_name` case-insensitively; OTC labels use other
+  sections (`ask_doctor`, `do_not_use`...) than Rx labels, so a missing section is normal.
+
 ## Eval notes
 
 - `data/eval/golden.jsonl`: 34 questions with expected drug + label sections + key facts, each
