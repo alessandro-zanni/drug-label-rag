@@ -1,4 +1,4 @@
-from api.evaluate import hit, summarize
+from api.evaluate import FactCheck, Verdict, grade_checks, hit, summarize
 from api.retrieval import Passage
 
 
@@ -20,3 +20,27 @@ def test_summarize_skips_errored_and_truncated_rows():
         {"status": "truncated", "grade": {}},
     ]
     assert summarize(rows) == {"faithful": 0.5}
+
+
+def verdict(covered: list[bool], unsupported=(), abstained=False) -> Verdict:
+    facts = [FactCheck(fact=str(i), covered=c) for i, c in enumerate(covered)]
+    return Verdict(
+        facts=facts, unsupported_claims=list(unsupported), abstained=abstained, explanation=""
+    )
+
+
+def test_grade_checks_scores_a_good_and_a_blind_judge():
+    good = (verdict([True, True]), verdict([False, False], abstained=True), verdict([False], ["x"]))
+    blind = (verdict([True, False]), verdict([True, True]), verdict([False]))
+    assert grade_checks([good]) == {
+        "oracle_recall": 1.0,
+        "null_recall": 0.0,
+        "null_abstained": 1.0,
+        "fabricated_flagged": 1.0,
+    }
+    assert grade_checks([blind]) == {
+        "oracle_recall": 0.5,
+        "null_recall": 1.0,
+        "null_abstained": 0.0,
+        "fabricated_flagged": 0.0,
+    }
