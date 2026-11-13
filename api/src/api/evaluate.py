@@ -25,7 +25,7 @@ from api.retrieval import Passage, search
 ROOT = Path(__file__).parents[3]
 GOLDEN = ROOT / "data" / "eval" / "golden.jsonl"
 RUNS = ROOT / "eval" / "runs"
-JUDGE_MODEL = "anthropic.claude-haiku-5-5"
+JUDGE_MODEL = "eu.anthropic.claude-haiku-5-5"
 TOP_K = 8
 
 # Baseline thresholds; raise them once a few runs show the noise floor.
