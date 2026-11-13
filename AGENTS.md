@@ -31,8 +31,8 @@ Ask questions about drug labels ("Can I take ibuprofen with warfarin?") and get 
 - [x] 0. Scaffold: FastAPI + React, Postgres/pgvector in compose, CI
 - [x] 1. Ingestion: openFDA labels → section chunks → Titan embeddings → pgvector
 - [ ] 2. RAG: `POST /ask`, hybrid retrieval (vector + full-text), cited answers, streaming
-  (code done; generation blocked on the Bedrock Marketplace agreement, see Bedrock notes;
-  streaming missing)
+  (code done, streaming included; generation blocked on the Bedrock Marketplace agreement,
+  see Bedrock notes)
 - [ ] 3. Agent: tool-use loop (`search_labels`, `get_section`, `compare_drugs`)
 - [ ] 4. Eval: golden set, recall@k, LLM-judge faithfulness/correctness, CI gate
   (golden set + runner done; retrieval baseline 30/34 = 88%; full run pending; before trusting
@@ -70,6 +70,9 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
   fusion in one SQL query. Pass vectors with `::vector`: psycopg sends lists as `float8[]`.
 - Generation (`rag.py`): passages go to Claude as `search_result` blocks with citations on,
   so citations come from the API, not from parsing `[n]` out of the text.
+- Streaming: `POST /ask/stream` sends SSE `data:` lines (`text`, `source` on first citation,
+  final `refused` meaning "replace the shown text"). `[n]` markers arrive at the end of each
+  cited block, as in the non-streaming answer.
 - Model `anthropic.claude-opus-5-5` on Bedrock (Mantle client), effort `medium`. Bedrock has no
   server-side `fallbacks`: `BetaRefusalFallbackMiddleware` retries a refusal on Opus 4.8.
 - Tests need Postgres (`docker compose up -d db`); CI runs it as a service.
