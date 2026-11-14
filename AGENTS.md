@@ -73,9 +73,11 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - Streaming: `POST /ask/stream` sends SSE `data:` lines (`text`, `source` on first citation,
   final `refused` meaning "replace the shown text"). `[n]` markers arrive at the end of each
   cited block, as in the non-streaming answer.
-- Model `eu.anthropic.claude-opus-5-5` (EU inference profile) on Bedrock (Mantle client),
-  effort `medium`. Bedrock has no server-side `fallbacks`: `BetaRefusalFallbackMiddleware`
-  retries a refusal on Opus 4.8.
+- Provider (`llm.py`): `ANTHROPIC_API_KEY` set (in `api/.env`, run with
+  `uv run --env-file .env ...`) -> Anthropic API with plain model IDs; unset -> Bedrock with the
+  `eu.anthropic.…` profiles. Same code, same citations; only the client and IDs change.
+- Model `claude-opus-5-5`, effort `medium`. Bedrock has no server-side `fallbacks`:
+  `BetaRefusalFallbackMiddleware` retries a refusal on Opus 4.8.
 - The Opus 4.8 fallback is deliberate: Opus 5.5's safety classifiers (`bio` category) can
   falsely refuse dose/overdose questions, and 4.8 usually answers. Revisit with the eval's
   `refused` count; it only costs when it fires.
