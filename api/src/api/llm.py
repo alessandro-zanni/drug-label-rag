@@ -3,8 +3,9 @@ from functools import cache
 
 from anthropic import AnthropicBedrockMantle, BetaRefusalFallbackMiddleware
 
-MODEL = "anthropic.claude-opus-5-5"
-FALLBACK_MODEL = "anthropic.claude-opus-4-8"
+# Frankfurt has no in-region endpoint for Claude: the EU profile keeps inference in the EU.
+MODEL = "eu.anthropic.claude-opus-5-5"
+FALLBACK_MODEL = "eu.anthropic.claude-opus-4-8"
 
 
 @cache

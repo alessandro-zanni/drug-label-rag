@@ -73,8 +73,12 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - Streaming: `POST /ask/stream` sends SSE `data:` lines (`text`, `source` on first citation,
   final `refused` meaning "replace the shown text"). `[n]` markers arrive at the end of each
   cited block, as in the non-streaming answer.
-- Model `anthropic.claude-opus-5-5` on Bedrock (Mantle client), effort `medium`. Bedrock has no
-  server-side `fallbacks`: `BetaRefusalFallbackMiddleware` retries a refusal on Opus 4.8.
+- Model `eu.anthropic.claude-opus-5-5` (EU inference profile) on Bedrock (Mantle client),
+  effort `medium`. Bedrock has no server-side `fallbacks`: `BetaRefusalFallbackMiddleware`
+  retries a refusal on Opus 4.8.
+- The Opus 4.8 fallback is deliberate: Opus 5.5's safety classifiers (`bio` category) can
+  falsely refuse dose/overdose questions, and 4.8 usually answers. Revisit with the eval's
+  `refused` count; it only costs when it fires.
 - Tests need Postgres (`docker compose up -d db`); CI runs it as a service.
 
 ## Agent notes
@@ -105,9 +109,10 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 
 ## Bedrock notes
 
-- Region eu-central-1. Claude there has no in-region endpoint, only Global/EU profiles
-  (`global.anthropic.…`, `eu.anthropic.…`): if the plain `anthropic.` ID still 404s once access
-  works, switch `llm.MODEL` to the `eu.` profile to keep data in the EU.
+- Region eu-central-1. Claude there has no in-region endpoint, only Global/EU profiles: model
+  IDs use the `eu.anthropic.…` profile to keep data in the EU (plain `anthropic.` IDs 404).
+- Anthropic models need a **paid** AWS plan: on the free plan the agreement turns AVAILABLE but
+  calls fail with "not available for this account" (`aws freetier get-account-plan-state`).
 - A 404 "model does not exist" for every Claude model means the account has no Marketplace
   agreement (`aws bedrock get-foundation-model-availability` shows
   `agreementAvailability: NOT_AVAILABLE`): submit the Anthropic use-case form in the console.
