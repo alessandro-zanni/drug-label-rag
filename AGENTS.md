@@ -31,16 +31,18 @@ Ask questions about drug labels ("Can I take ibuprofen with warfarin?") and get 
 - [x] 0. Scaffold: FastAPI + React, Postgres/pgvector in compose, CI
 - [x] 1. Ingestion: openFDA labels → section chunks → Titan embeddings → pgvector
 - [ ] 2. RAG: `POST /ask`, hybrid retrieval (vector + full-text), cited answers, streaming
-  (code done, streaming included; generation blocked on the Bedrock Marketplace agreement,
-  see Bedrock notes)
+  (code done, streaming included; runs on the Anthropic API via `ANTHROPIC_API_KEY`, Bedrock
+  Claude access is still blocked on the AWS side, see Bedrock notes)
 - [ ] 3. Agent: tool-use loop (`search_labels`, `get_section`, `compare_drugs`)
 - [ ] 4. Eval: golden set, recall@k, LLM-judge faithfulness/correctness, CI gate
-  (golden set + runner done; retrieval baseline 30/34 = 88%; full run pending; before trusting
-  it: oracle/null checks on the judge; then a CI job on PRs touching `api/`)
+  (golden set, runner and judge checks done, baseline in Eval notes; left: a CI job on PRs
+  touching `api/`, with an `ANTHROPIC_API_KEY` secret, one key per environment)
 - [ ] 4b. Compare an open model on Bedrock against Claude on the same golden set
   (quality vs cost per question); add a provider switch only for that comparison
 - [ ] 5. Prod-readiness: structured logs, audit log, metrics, rate limit, guardrails
 - [ ] 6. Infra: Terraform for AWS (IAM roles + GitHub OIDC, never root credentials)
+  (first slice on branch `feat/infra-iam`, not merged: needs the non-root ARN for
+  `local_dev_trusted_arns` and a decision on narrowing the Anthropic model ARNs)
 - [ ] 7. CD: plan on PR, build/push/deploy on main
 
 ## Commands
@@ -129,6 +131,9 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - A 404 "model does not exist" for every Claude model means the account has no Marketplace
   agreement (`aws bedrock get-foundation-model-availability` shows
   `agreementAvailability: NOT_AVAILABLE`): submit the Anthropic use-case form in the console.
+- Even with a PAID plan and `agreementAvailability: AVAILABLE`, `authorizationStatus: AUTHORIZED`,
+  Claude calls can keep failing (404 "does not exist" on Mantle, `AccessDeniedException` on
+  Converse): that needs an AWS support case. Until it is solved, use `ANTHROPIC_API_KEY`.
 - Local dev reads `aws login` credentials, which needs `botocore[crt]` (dev dependency).
 
 ## Static analysis
