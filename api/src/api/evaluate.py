@@ -70,7 +70,7 @@ def judge(case: dict, passages: list[Passage], text: str):
     response = llm.client().messages.parse(
         model=llm.JUDGE_MODEL,
         max_tokens=4000,
-        output_config={"effort": "low"},
+        output_config={"effort": "medium"},
         system=JUDGE_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
         output_format=Verdict,
@@ -176,6 +176,9 @@ def run_case(case: dict, retrieval_only: bool) -> dict:
         response = rag.generate(case["question"], passages) if passages else None
         answer = rag.to_answer(response, passages) if response else rag.answer("", [])
         row |= {"answer": answer.text, "sources": [s.title for s in answer.sources]}
+        row["passages"] = [
+            {"title": p.title, "text": p.text} for p in passages
+        ]  # to re-check verdicts
         if response:
             row |= {
                 "model": response.model,
