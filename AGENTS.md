@@ -105,10 +105,14 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - `--judge-check` grades known answers (gold facts, "labels do not cover this", a fabricated one)
   and writes `verdicts.jsonl`; it must pass before trusting a run. It caught the judge crediting
   facts found only in the passages (null recall 22% -> 0% after the prompt said "the answer itself").
-- Baselines (2026-11-14, Opus 5.5 + Haiku judge): `faithful` 48.6% with the judge comparing
-  `[n]` markers (a numbering mismatch, fixed), then 73.0% with markers stripped; `fact_recall`
-  87.3%, `retrieval_hit` 94.1%, 0 refusals. The judge flips on some cases between runs (q01), so
-  read `faithful` over several runs before moving a threshold.
+- Baseline (2026-11-14, Opus 5.5 + Haiku judge at effort medium, two identical runs): `faithful`
+  100% / 97.3%, `fact_recall` 86.3% / 83.8%, `retrieval_hit` 94.1%, `abstain_ok` and `cited`
+  100%, 0 refusals. Noise seen between runs: about 3 points on `faithful` (q34), 2.5 on
+  `fact_recall` (q05, q22). Judge history: marking `[n]` markers and passages-only facts as
+  coverage gave `faithful` 48.6%; stripping markers 73.0%; a grounded generator prompt 86.5%;
+  judge effort medium (the earlier misses were claims present in the label text) 100%.
+- Weak spots left: `fact_recall` on q16, q17, q18, q21, q31 (retrieval finds the passage, the
+  answer misses expected facts) and the two known retrieval misses q32, q34.
 - Thresholds in `evaluate.THRESHOLDS` are a provisional baseline: raise them once a few runs show
   the noise floor. Full run costs about EUR 2 (Opus generation); `--retrieval-only` only embeds.
 - Gold is changed only when the label text proves it too narrow (q18, q26 accept
