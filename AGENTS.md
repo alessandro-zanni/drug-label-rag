@@ -102,6 +102,9 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - Metrics: `retrieval_hit` (expected drug and section in the top 8), `fact_recall`, `faithful`
   (no claim unsupported by the passages), `cited`, `abstain_ok`. Judge: Haiku 5.5 with
   structured output (`messages.parse`), never the generator model. Runs land in `eval/runs/`.
+- `--judge-check` grades known answers (gold facts, "labels do not cover this", a fabricated one)
+  and writes `verdicts.jsonl`; it must pass before trusting a run. It caught the judge crediting
+  facts found only in the passages (null recall 22% -> 0% after the prompt said "the answer itself").
 - Thresholds in `evaluate.THRESHOLDS` are a provisional baseline: raise them once a few runs show
   the noise floor. Full run costs about EUR 2 (Opus generation); `--retrieval-only` only embeds.
 - Gold is changed only when the label text proves it too narrow (q18, q26 accept
