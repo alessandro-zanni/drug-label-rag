@@ -73,7 +73,10 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - Streaming: `POST /ask/stream` sends SSE `data:` lines (`text`, `source` on first citation,
   final `refused` meaning "replace the shown text"). `[n]` markers arrive at the end of each
   cited block, as in the non-streaming answer.
-- Model `anthropic.claude-opus-5-5` on Bedrock (Mantle client), effort `medium`. Bedrock has no
+- Provider (`llm.py`): `ANTHROPIC_API_KEY` set (in `api/.env`, run with
+  `uv run --env-file .env ...`) -> Anthropic API with plain model IDs; unset -> Bedrock with the
+  `eu.anthropic.…` profiles. Same code, same citations; only the client and IDs change.
+- Model `claude-opus-5-5` (Mantle client on Bedrock), effort `medium`. Bedrock has no
   server-side `fallbacks`: `BetaRefusalFallbackMiddleware` retries a refusal on Opus 4.8.
 - Tests need Postgres (`docker compose up -d db`); CI runs it as a service.
 

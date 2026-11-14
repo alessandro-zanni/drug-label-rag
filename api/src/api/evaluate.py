@@ -25,7 +25,6 @@ from api.retrieval import Passage, search
 ROOT = Path(__file__).parents[3]
 GOLDEN = ROOT / "data" / "eval" / "golden.jsonl"
 RUNS = ROOT / "eval" / "runs"
-JUDGE_MODEL = "anthropic.claude-haiku-5-5"
 TOP_K = 8
 
 # Baseline thresholds; raise them once a few runs show the noise floor.
@@ -58,7 +57,7 @@ def judge(case: dict, passages: list[Passage], text: str):
         f"<answer>{text}</answer>\n<expected_facts>\n{facts}\n</expected_facts>"
     )
     response = llm.client().messages.parse(
-        model=JUDGE_MODEL,
+        model=llm.JUDGE_MODEL,
         max_tokens=4000,
         output_config={"effort": "low"},
         system=JUDGE_SYSTEM,
