@@ -3,6 +3,7 @@
     uv run python -m api.evaluate                   # full run (Bedrock: Opus + Haiku judge)
     uv run python -m api.evaluate --retrieval-only  # embeddings only, a few cents
     uv run python -m api.evaluate --limit 5         # quick smoke run
+    uv run python -m api.evaluate --judge-check     # oracle/null checks on the judge itself
 
 Writes eval/runs/<timestamp>/results.jsonl and exits 1 when a metric is under its threshold.
 """
@@ -65,6 +66,56 @@ def judge(case: dict, passages: list[Passage], text: str):
         output_format=Verdict,
     )
     return response.parsed_output, response
+
+
+# Judge sanity: answers whose grade is known. A judge failing these cannot gate merges.
+NULL_ANSWER = "The labels do not cover this question."
+FABRICATED_ANSWER = "This drug cures cancer and should be taken at 5000 mg every hour."
+JUDGE_BOUNDS = {
+    "oracle_recall": (0.9, 1.0),
+    "null_recall": (0.0, 0.1),
+    "null_abstained": (0.9, 1.0),
+    "fabricated_flagged": (0.9, 1.0),
+}
+
+
+def recall(verdict: Verdict) -> float:
+    return sum(f.covered for f in verdict.facts) / max(len(verdict.facts), 1)
+
+
+def grade_checks(triples: list[tuple[Verdict, Verdict, Verdict]]) -> dict[str, float]:
+    """Each triple is the verdicts for (oracle, null, fabricated) answers to one case."""
+    n = len(triples)
+    return {
+        "oracle_recall": sum(recall(o) for o, _, _ in triples) / n,
+        "null_recall": sum(recall(z) for _, z, _ in triples) / n,
+        "null_abstained": sum(z.abstained for _, z, _ in triples) / n,
+        "fabricated_flagged": sum(bool(f.unsupported_claims) for _, _, f in triples) / n,
+    }
+
+
+def judge_check_case(case: dict):
+    with connect() as conn:
+        passages = search(conn, case["question"], embed(case["question"]), limit=TOP_K)
+    if not hit(case, passages):  # the oracle answer must be supportable by the passages
+        return None
+    oracle = ". ".join(case["facts"])
+    return tuple(judge(case, passages, t)[0] for t in (oracle, NULL_ANSWER, FABRICATED_ANSWER))
+
+
+def judge_check(cases: list[dict]) -> bool:
+    positives = [c for c in cases if c["drugs"]]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        triples = [t for t in pool.map(judge_check_case, positives) if t]
+    scores = grade_checks(triples)
+    ok = True
+    for metric, (lo, hi) in JUDGE_BOUNDS.items():
+        good = lo <= scores[metric] <= hi
+        ok &= good
+        mark = "ok" if good else "FAIL"
+        print(f"{metric:19} {scores[metric]:6.1%}  (want {lo:.0%}-{hi:.0%})  {mark}")
+    print(f"cases judged: {len(triples)}/{len(positives)}")
+    return ok
 
 
 def hit(case: dict, passages: list[Passage]) -> bool:
@@ -134,11 +185,14 @@ def summarize(rows: list[dict]) -> dict[str, float]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--retrieval-only", action="store_true")
+    parser.add_argument("--judge-check", action="store_true")
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
 
     cases = [json.loads(line) for line in GOLDEN.read_text().splitlines() if line.strip()]
     cases = cases[: args.limit] if args.limit else cases
+    if args.judge_check:
+        sys.exit(0 if judge_check(cases) else 1)
     with ThreadPoolExecutor(max_workers=4) as pool:
         rows = list(pool.map(lambda c: run_case(c, args.retrieval_only), cases))
 
