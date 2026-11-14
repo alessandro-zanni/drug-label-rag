@@ -1,4 +1,4 @@
-from api.evaluate import FactCheck, Verdict, grade_checks, hit, summarize
+from api.evaluate import FactCheck, Verdict, grade_checks, hit, strip_citations, summarize
 from api.retrieval import Passage
 
 
@@ -44,3 +44,7 @@ def test_grade_checks_scores_a_good_and_a_blind_judge():
         "null_abstained": 0.0,
         "fabricated_flagged": 0.0,
     }
+
+
+def test_strip_citations_removes_markers_but_not_other_brackets():
+    assert strip_citations("Avoid it [1]. Also [2][3] see x[a].") == "Avoid it. Also see x[a]."
