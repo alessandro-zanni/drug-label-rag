@@ -110,6 +110,8 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - Audit (`audit_log`, migration 002): question, endpoint, cited source titles, refused,
   latency, client IP truncated to /24 or /48, written after the answer (after the last event
   for streams). Questions can be health data: rows older than 30 days are purged on each insert.
+  Fail-closed on purpose: if the insert fails the request returns 500 (a stream breaks off),
+  so no answer goes out without an audit row.
 - Rate limit: 10 POSTs per IP per minute, then 429 + `Retry-After`. In-memory per process,
   so it multiplies by the number of ECS tasks (WAF replaces it in phase 6).
 
@@ -161,6 +163,9 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - Even with a PAID plan and `agreementAvailability: AVAILABLE`, `authorizationStatus: AUTHORIZED`,
   Claude calls can keep failing (404 "does not exist" on Mantle, `AccessDeniedException` on
   Converse): that needs an AWS support case. Until it is solved, use `ANTHROPIC_API_KEY`.
+  Case 179468908600069 was still unassigned on 2026-11-18, Claude still 404. On Basic support
+  `aws support describe-cases` fails (`SubscriptionRequiredException`): read the case in the
+  console (support.console.aws.amazon.com).
 - Local dev reads `aws login` credentials, which needs `botocore[crt]` (dev dependency).
 
 ## Static analysis
