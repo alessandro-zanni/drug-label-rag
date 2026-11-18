@@ -37,8 +37,9 @@ Ask questions about drug labels ("Can I take ibuprofen with warfarin?") and get 
 - [ ] 4. Eval: golden set, recall@k, LLM-judge faithfulness/correctness, CI gate
   (golden set, runner and judge checks done, baseline in Eval notes; left: a CI job on PRs
   touching `api/`, with an `ANTHROPIC_API_KEY` secret, one key per environment)
-- [ ] 4b. Compare an open model on Bedrock against Claude on the same golden set
-  (quality vs cost per question); add a provider switch only for that comparison
+- [x] 4b. Compare an open model on Bedrock against Claude on the same golden set
+  (quality vs cost per question); provider switch only in the eval (`--model open`), result in
+  Eval notes: Claude stays
 - [x] 5. Prod-readiness: structured logs, audit log, metrics, rate limit, guardrails
 - [ ] 6. Infra: Terraform for AWS (IAM roles + GitHub OIDC, never root credentials)
   (also: uvicorn `--proxy-headers` behind the ALB, or every client shares the ALB's IP for the
@@ -136,6 +137,17 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
   `warnings_and_cautions`: the same facts are in 5.1/5.2), never to make the system pass.
 - Known retrieval misses, left for the agent: "What is Praluent used for?" (full-text `use`
   matches the "... use" section titles) and "blood thinner pills" (lay term, no drug named).
+- Open model comparison (2026-11-18, same golden set, same Haiku judge, generation cost only):
+
+  | Model | faithful | fact_recall | cited | abstain_ok | latency | USD/question |
+  |---|---|---|---|---|---|---|
+  | Claude Opus 5.5 (effort medium) | 97.3% | 87.7% | 100% | 100% | 8.7 s | 0.0361 |
+  | Qwen3 235B (Bedrock, in-region) | 64.9% | 81.4% | 91.2% | 100% | 6.0 s | 0.0009 |
+
+  Qwen is ~40x cheaper but fails the `faithful` gate: it adds outside knowledge ("including
+  nitroglycerin") and hardens hedged label wording. Its citations are `[n]` markers parsed from
+  text (`open_model.py`), not API-checked like Claude's. Claude stays; the switch lives only in
+  `evaluate.py`, never in the API.
 
 ## Bedrock notes
 
