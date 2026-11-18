@@ -1,6 +1,6 @@
 from types import SimpleNamespace as NS
 
-from api.rag import NOT_FOUND, answer, stream_answer, to_answer, to_events
+from api.rag import DISCLAIMER, NOT_FOUND, answer, stream_answer, to_answer, to_events
 from api.retrieval import Passage
 
 
@@ -33,6 +33,7 @@ def test_citations_become_numbered_sources_in_first_use_order():
 def test_refusal_returns_no_sources():
     result = to_answer(NS(stop_reason="refusal", content=[]), [passage(0)])
     assert result.refused and result.sources == []
+    assert result.disclaimer == DISCLAIMER
 
 
 def test_no_passages_skips_the_model():
@@ -83,4 +84,7 @@ def test_stream_refusal_ends_with_refused_event():
 
 
 def test_stream_without_passages_skips_the_model():
-    assert list(stream_answer("anything", [])) == [{"type": "text", "text": NOT_FOUND}]
+    assert list(stream_answer("anything", [])) == [
+        {"type": "text", "text": NOT_FOUND},
+        {"type": "disclaimer", "text": DISCLAIMER},
+    ]

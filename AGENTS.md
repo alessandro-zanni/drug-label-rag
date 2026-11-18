@@ -39,8 +39,10 @@ Ask questions about drug labels ("Can I take ibuprofen with warfarin?") and get 
   touching `api/`, with an `ANTHROPIC_API_KEY` secret, one key per environment)
 - [ ] 4b. Compare an open model on Bedrock against Claude on the same golden set
   (quality vs cost per question); add a provider switch only for that comparison
-- [ ] 5. Prod-readiness: structured logs, audit log, metrics, rate limit, guardrails
+- [x] 5. Prod-readiness: structured logs, audit log, metrics, rate limit, guardrails
 - [ ] 6. Infra: Terraform for AWS (IAM roles + GitHub OIDC, never root credentials)
+  (also: uvicorn `--proxy-headers` behind the ALB, or every client shares the ALB's IP for the
+  rate limit and the audit log; WAF rate-based rule on the ALB in place of the in-app limit)
   (first slice on branch `feat/infra-iam`, not merged: needs the non-root ARN for
   `local_dev_trusted_arns` and a decision on narrowing the Anthropic model ARNs)
 - [ ] 7. CD: plan on PR, build/push/deploy on main
@@ -73,8 +75,8 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
 - Generation (`rag.py`): passages go to Claude as `search_result` blocks with citations on,
   so citations come from the API, not from parsing `[n]` out of the text.
 - Streaming: `POST /ask/stream` sends SSE `data:` lines (`text`, `source` on first citation,
-  final `refused` meaning "replace the shown text"). `[n]` markers arrive at the end of each
-  cited block, as in the non-streaming answer.
+  `refused` meaning "replace the shown text", always a last `disclaimer`). `[n]` markers arrive
+  at the end of each cited block, as in the non-streaming answer.
 - Provider (`llm.py`): `ANTHROPIC_API_KEY` set (in `api/.env`, run with
   `uv run --env-file .env ...`) -> Anthropic API with plain model IDs; unset -> Bedrock with the
   `eu.anthropic.…` profiles. Same code, same citations; only the client and IDs change.
@@ -96,6 +98,19 @@ cd api && uv run python -m api.evaluate [--retrieval-only] [--limit N]   # eval,
   pool connection per call: none is held during model calls.
 - Drug names match `generic_name`/`brand_name` case-insensitively; OTC labels use other
   sections (`ask_doctor`, `do_not_use`...) than Rx labels, so a missing section is normal.
+
+## Ops notes
+
+- Every answer carries `rag.DISCLAIMER` (field `disclaimer`; last event of the stream).
+- Logs (`main.py`): one JSON line per request on stderr, with `request_id` (also sent as
+  `X-Request-ID`) and CloudWatch Embedded Metric Format: on ECS the line becomes metrics
+  `Latency`, `Requests`, `Refused` in namespace `DrugLabelRag`, dimension `path` (route
+  template, `unmatched` for 404s). Stream latency there is time to headers.
+- Audit (`audit_log`, migration 002): question, endpoint, cited source titles, refused,
+  latency, client IP truncated to /24 or /48, written after the answer (after the last event
+  for streams). Questions can be health data: rows older than 30 days are purged on each insert.
+- Rate limit: 10 POSTs per IP per minute, then 429 + `Retry-After`. In-memory per process,
+  so it multiplies by the number of ECS tasks (WAF replaces it in phase 6).
 
 ## Eval notes
 

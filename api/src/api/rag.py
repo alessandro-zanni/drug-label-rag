@@ -20,6 +20,10 @@ someone's own treatment, close by recommending they check with a doctor or pharm
 mix languages. Be concise: a short paragraph or a few bullets."""
 
 NOT_FOUND = "I couldn't find anything about this in the drug labels I have."
+DISCLAIMER = (
+    "Information from FDA drug labels, not medical advice. Ask a doctor or pharmacist before "
+    "starting, stopping or combining medicines."
+)
 
 
 @dataclass
@@ -35,6 +39,7 @@ class Answer:
     text: str
     sources: list[Source] = field(default_factory=list)
     refused: bool = False
+    disclaimer: str = DISCLAIMER
 
 
 def search_result(p: Passage) -> dict:
@@ -128,8 +133,13 @@ def to_events(stream, passages: list[Passage]) -> Iterator[dict]:
 
 
 def stream_answer(question: str, passages: list[Passage]) -> Iterator[dict]:
+    """Like to_events, always closed by a disclaimer event."""
     if not passages:
         yield {"type": "text", "text": NOT_FOUND}
-        return
-    with BetaFallbackState(), llm.client().beta.messages.stream(**request(question, passages)) as s:
-        yield from to_events(s, passages)
+    else:
+        with (
+            BetaFallbackState(),
+            llm.client().beta.messages.stream(**request(question, passages)) as s,
+        ):
+            yield from to_events(s, passages)
+    yield {"type": "disclaimer", "text": DISCLAIMER}
