@@ -1,4 +1,13 @@
-from api.evaluate import FactCheck, Verdict, grade_checks, hit, strip_citations, summarize
+from api import open_model
+from api.evaluate import (
+    FactCheck,
+    Verdict,
+    cost,
+    grade_checks,
+    hit,
+    strip_citations,
+    summarize,
+)
 from api.retrieval import Passage
 
 
@@ -48,3 +57,18 @@ def test_grade_checks_scores_a_good_and_a_blind_judge():
 
 def test_strip_citations_removes_markers_but_not_other_brackets():
     assert strip_citations("Avoid it [1]. Also [2][3] see x[a].") == "Avoid it. Also see x[a]."
+
+
+def test_open_model_renumbers_markers_by_first_use_and_drops_unknown_ones():
+    passages = [p("A", "warnings"), p("B", "warnings"), p("C", "warnings")]
+    text = "First [3]. Second [1]. Again [3]. Bogus [9]."
+    response = {"output": {"message": {"content": [{"reasoningContent": {}}, {"text": text}]}}}
+    answer = open_model.to_answer(response, passages)
+    assert answer.text == "First [1]. Second [2]. Again [1]. Bogus."
+    assert [s.number for s in answer.sources] == [1, 2]
+    assert answer.sources[0].title == passages[2].title
+
+
+def test_cost_uses_list_prices_and_skips_unknown_models():
+    assert cost("claude-opus-5-5", {"input_tokens": 1_000_000, "output_tokens": 0}) == 4.0
+    assert cost("unknown", {"input_tokens": 1, "output_tokens": 1}) is None

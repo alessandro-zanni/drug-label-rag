@@ -4,6 +4,7 @@
     uv run python -m api.evaluate --retrieval-only  # embeddings only, a few cents
     uv run python -m api.evaluate --limit 5         # quick smoke run
     uv run python -m api.evaluate --judge-check     # oracle/null checks on the judge itself
+    uv run python -m api.evaluate --model open      # open-weight model on Bedrock (phase 4b)
 
 Writes eval/runs/<timestamp>/results.jsonl and exits 1 when a metric is under its threshold.
 """
@@ -19,7 +20,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from api import llm, rag
+from api import llm, open_model, rag
 from api.db import connect
 from api.embeddings import embed
 from api.retrieval import Passage, search
@@ -28,6 +29,14 @@ ROOT = Path(__file__).parents[3]
 GOLDEN = ROOT / "data" / "eval" / "golden.jsonl"
 RUNS = ROOT / "eval" / "runs"
 TOP_K = 8
+
+# USD per million tokens (input, output), generation only: the judge is the same for every
+# model. Claude: Anthropic API list prices; open model: Bedrock on-demand, eu-central-1.
+PRICES = {
+    "claude-opus-5-5": (4.0, 20.0),
+    "claude-opus-4-8": (5.0, 25.0),
+    "qwen.qwen3-235b-a22b-2507-v1:0": (0.29, 1.16),
+}
 
 # Baseline thresholds; raise them once a few runs show the noise floor.
 THRESHOLDS = {"retrieval_hit": 0.85, "fact_recall": 0.75, "faithful": 0.9, "abstain_ok": 1.0}
@@ -155,7 +164,7 @@ def hit(case: dict, passages: list[Passage]) -> bool:
     return any(p.generic_name in case["drugs"] and p.section in case["sections"] for p in passages)
 
 
-def run_case(case: dict, retrieval_only: bool) -> dict:
+def run_case(case: dict, retrieval_only: bool, model: str = "claude") -> dict:
     negative = not case["drugs"]
     row = {
         "prompt_id": case["id"],
@@ -173,19 +182,35 @@ def run_case(case: dict, retrieval_only: bool) -> dict:
         if retrieval_only:
             return row
 
-        response = rag.generate(case["question"], passages) if passages else None
-        answer = rag.to_answer(response, passages) if response else rag.answer("", [])
-        row |= {"answer": answer.text, "sources": [s.title for s in answer.sources]}
-        row["passages"] = [
-            {"title": p.title, "text": p.text} for p in passages
-        ]  # to re-check verdicts
-        if response:
-            row |= {
+        if passages and model == "open":
+            response = open_model.generate(case["question"], passages)
+            answer = open_model.to_answer(response, passages)
+            usage = response["usage"]
+            meta = {
+                "model": open_model.MODEL,
+                "stop_reason": response["stopReason"],
+                "usage": {
+                    "input_tokens": usage["inputTokens"],
+                    "output_tokens": usage["outputTokens"],
+                },
+            }
+        elif passages:
+            response = rag.generate(case["question"], passages)
+            answer = rag.to_answer(response, passages)
+            meta = {
                 "model": response.model,
                 "stop_reason": response.stop_reason,
                 "usage": response.usage.model_dump(),
             }
-            if response.stop_reason == "max_tokens":
+        else:
+            answer, meta = rag.answer("", []), {}
+        row |= {"answer": answer.text, "sources": [s.title for s in answer.sources]}
+        row["passages"] = [
+            {"title": p.title, "text": p.text} for p in passages
+        ]  # to re-check verdicts
+        if meta:
+            row |= meta | {"cost_usd": cost(meta["model"], meta["usage"])}
+            if meta["stop_reason"] == "max_tokens":
                 row["status"] = "truncated"
                 return row
 
@@ -209,6 +234,13 @@ def run_case(case: dict, retrieval_only: bool) -> dict:
     return row
 
 
+def cost(model: str, usage: dict) -> float | None:
+    if model not in PRICES:
+        return None
+    price_in, price_out = PRICES[model]
+    return (usage["input_tokens"] * price_in + usage["output_tokens"] * price_out) / 1e6
+
+
 def summarize(rows: list[dict]) -> dict[str, float]:
     scores: dict[str, list[float]] = {}
     for row in rows:
@@ -223,6 +255,7 @@ def main() -> None:
     parser.add_argument("--retrieval-only", action="store_true")
     parser.add_argument("--judge-check", action="store_true")
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--model", choices=["claude", "open"], default="claude")
     args = parser.parse_args()
 
     cases = [json.loads(line) for line in GOLDEN.read_text().splitlines() if line.strip()]
@@ -230,7 +263,7 @@ def main() -> None:
     if args.judge_check:
         sys.exit(0 if judge_check(cases) else 1)
     with ThreadPoolExecutor(max_workers=4) as pool:
-        rows = list(pool.map(lambda c: run_case(c, args.retrieval_only), cases))
+        rows = list(pool.map(lambda c: run_case(c, args.retrieval_only, args.model), cases))
 
     out = RUNS / datetime.now().strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True)
@@ -244,6 +277,12 @@ def main() -> None:
         print(f"{metric:15} {value:6.1%}  (min {THRESHOLDS.get(metric, 0):.0%})  {mark}")
     for r in errors:
         print(f"{r['prompt_id']}: {r['status']} {r.get('error', '')}")
+    ok = [r for r in rows if r["status"] == "ok"]
+    costs = [r["cost_usd"] for r in ok if r.get("cost_usd") is not None]
+    if ok:
+        print(f"mean latency    {sum(r['latency_s'] for r in ok) / len(ok):.1f} s")
+    if costs:
+        print(f"cost/question   ${sum(costs) / len(costs):.4f} (generation, {len(costs)} rows)")
     print(f"results: {out / 'results.jsonl'}")
     sys.exit(1 if failed or errors else 0)
 
